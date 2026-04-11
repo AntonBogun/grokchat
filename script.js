@@ -109,6 +109,7 @@ const GrokChatApp = {
         loggedLibraryStatus: false,
         isSendingMessage: false, // Guards against rapid re-entry into handleSendMessage
         currentStreamingResponseMessage: '', // Accumulates AI response during streaming
+        userScrolledUp: false, // True when user has scrolled up during streaming
         editingSystemPromptName: null, // To track system prompt being edited
         selectedFolderId: null, // To track selected folder in settings
         editingFolderId: null, // To track folder being edited/added
@@ -441,6 +442,15 @@ const GrokChatApp = {
         this.dom.settingsBtn.addEventListener('click', () => this._openSettingsModal());
         this.dom.messageForm.addEventListener('submit', (e) => { e.preventDefault(); this.handleSendMessage(); });
         this.dom.messageInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.handleSendMessage(); } });
+        this.dom.messageAreaWrapper.addEventListener('scroll', () => {
+            const el = this.dom.messageAreaWrapper;
+            const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
+            if (atBottom) {
+                this.state.userScrolledUp = false;
+            } else if (this.state.isRequestInProgress) {
+                this.state.userScrolledUp = true;
+            }
+        });
         this.dom.closeSettingsModalBtn.addEventListener('click', () => this._closeModal(this.dom.settingsModal));
         this.dom.saveSettingsBtn.addEventListener('click', () => { this._collectSettingsFromForm(); this.saveSettings(); this._closeModal(this.dom.settingsModal); });
         this.dom.themeSelector.addEventListener('change', (e) => { this.state.settings.theme = e.target.value; this._applyTheme(); });
@@ -1972,6 +1982,7 @@ const GrokChatApp = {
         this._autoAdjustTextareaHeight.call(this.dom.messageInput);
 
         this.state.isRequestInProgress = true;
+        this.state.userScrolledUp = false;
         this._toggleSendButtonState(true);
         this.state.currentAbortController = new AbortController();
         const startTime = Date.now();
@@ -2058,7 +2069,7 @@ const GrokChatApp = {
                                     this.state.currentStreamingResponseMessage += contentDelta;
                                     if (assistantMessageElement) {
                                         assistantMessageElement.innerHTML = window.DOMPurify.sanitize(window.marked.parse(this.state.currentStreamingResponseMessage + " ▌"));
-                                        this._scrollToBottom();
+                                        if (!this.state.userScrolledUp) this._scrollToBottom();
                                     }
                                 }
 
@@ -2172,7 +2183,8 @@ const GrokChatApp = {
             this.state.currentStreamingResponseMessage = '';
             this._toggleSendButtonState(false);
             this.state.isSendingMessage = false;
-            this._scrollToBottom();
+            if (!this.state.userScrolledUp) this._scrollToBottom();
+            this.state.userScrolledUp = false;
         }
     },
 
